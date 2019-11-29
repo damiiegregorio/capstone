@@ -11,12 +11,12 @@ import requests
 import yaml
 import psycopg2
 import time
-import sys
 
 # Global Variables
-base_url = 'http://3.228.218.197/'
+base_url = 'http://54.174.36.110/'
 yaml_file = 'config.yaml'
 all_files = []
+parent_urls = []
 
 
 def get_url(base_url):
@@ -46,16 +46,13 @@ def get_parent_url():
     if response is not None:
         soup = BeautifulSoup(response, 'html.parser')
         download_links = soup.find_all('li')
-        # Skip this array of links
-        except_links = ['http://www.nirsoft.net/utils/index.html#internet_utils',
-                        'http://www.nirsoft.net/utils/index.html#password_utils',
-                        'http://www.nirsoft.net/utils/index.html#network_utils']
 
         for ref_link in download_links:
-
-            if ref_link.a.get('href') in except_links:
+            home_link = ref_link.a.get('href')
+            if not str(home_link).endswith('html'):
                 continue
             else:
+                parent_urls.append(home_link)
                 recursive(ref_link, base_url)
     else:
         # Raise an exception if we failed to get any data from the url
@@ -98,8 +95,31 @@ def recursive(urls, new_url):
         logger.info('[x] No files found to download.')
 
 
-def get_version(file_path):
-    pass
+def get_version():
+    for par in parent_urls:
+        version_links = "{}{}".format(base_url, par)
+        response = get_url(version_links)
+
+        if response is not None:
+            soup = BeautifulSoup(response, 'html.parser')
+            table = soup.find('table', {"class": "utilcaption"})
+            rows = table.find_all('td')
+            for r in rows:
+                row = str(r)
+                row = row.split('\n')[1]
+                v = row.split('<br/>')[0]
+                ver = v.split('<td>')[-1]
+                version = ver.split('\n')[0]
+                if version == '':
+                    continue
+                else:
+                    if '-' in version:
+                        version = version.split(' - ')[0]
+                        logger.info(version)
+                    elif version is None:
+                        continue
+                    else:
+                        logger.info(version)
 
 
 def get_file_size(file_path):
@@ -154,15 +174,16 @@ def get_md5(file):
 
 def download_file(url, filename):
     try:
-        local_storage = 'C:\\Users\\TEU_USER\\PycharmProjects\\capstone\\storage'
+        local_storage = "{}\\storage".format(os.getcwd())
         r = requests.get(url, allow_redirects=True)
 
-        if r.status_code is 200:
+        if r.status_code == 200:
             logger.info("[Currently downloading {}]".format(url))
             wget.download(url, local_storage)
             logger.info("[/] Successfully downloaded {}".format(filename))
             file_path = "{}{}{}".format(local_storage, os.sep, filename)
             return file_path
+
         else:
             logger.info("[Currently downloading {}]".format(url))
             logger.error("[x] Failed to download {}".format(filename))
@@ -205,11 +226,16 @@ def setup_yaml():
         print('Failed to load configuration file. Using default configs')
 
 
-def connect_to_sql():
+def open_yaml():
     global yaml_file
     with open(yaml_file, 'rt') as f:
         config = yaml.safe_load(f.read())
     mysql = config['mysql']
+    return mysql
+
+
+def connect_to_sql():
+    mysql = open_yaml()
 
     connection = psycopg2.connect(
         user=mysql['user'],
@@ -246,12 +272,17 @@ def insert_to_db():
 def main():
     logger.info('Harvesting your files.')
     logger.info('Please wait.')
+    start_time = time.time()
     get_parent_url()
-    # logger.info('Getting ready to insert your files to database.')
-    # insert_to_db()
+    logger.info('Getting ready to insert your files to database.')
+    insert_to_db()
+    # get_version()
+    duration = time.time() - start_time
+    logger.info("Downloaded data in {} seconds".format(duration))
 
 
 if __name__ == '__main__':
     setup_yaml()
     logger = logging.getLogger(__name__)
     main()
+

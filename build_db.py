@@ -55,15 +55,15 @@ def create_table():
         cursor = connection.cursor()
 
         create_table_query = """
-        CREATE TABLE files
+        CREATE TABLE file
             (ID       SERIAL  PRIMARY KEY     NOT NULL,
             URL              varchar         NOT NULL,
             FILENAME          varchar         NOT NULL,
             SHA1              varchar         NOT NULL,
             MD5              varchar         NOT NULL,
             SIZE              varchar         NOT NULL,
-            FILE_TYPE         varchar         NOT NULL,
-            VERSION           varchar         NOT NULL); 
+            FILE_TYPE         varchar         NOT NULL, 
+            VERSION         varchar         NOT NULL); 
         """
 
         cursor.execute(create_table_query)
@@ -97,7 +97,7 @@ def setup_yaml():
 
 
 def main():
-    # create_db()
+    create_db()
     create_table()
 
 
