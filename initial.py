@@ -2,6 +2,8 @@ from requests import get
 from requests.exceptions import RequestException
 from contextlib import closing
 from bs4 import BeautifulSoup
+from check_db import *
+import psycopg2
 import hashlib
 import wget
 import os
@@ -9,21 +11,22 @@ import logging
 import logging.config
 import requests
 import yaml
-import psycopg2
 import time
 
 # Global Variables
 base_url = 'http://54.174.36.110/'
 yaml_file = 'config.yaml'
 all_files = []
+main_versions = []
 parent_urls = []
+child_v = []
 
 
 def get_url(base_url):
     try:
         with closing(get(base_url, stream=True)) as resp:
             if is_good_response(resp):
-                return resp.content
+                return resp.text
             else:
                 return None
 
@@ -76,50 +79,97 @@ def recursive(urls, new_url):
                 if str(file).startswith('http'):
                     continue
                 else:
+                    # Main requirements for record tracking
                     url = get_urls(base_url, file)
+                    version_type = get_version_type(url)
+                    version = get_all_versions(version_type, url, file)
+                    app_name = get_app_name(file)
                     filename = get_filename(file)
-                    sha1 = get_sha1(file)
-                    md5 = get_md5(file)
-                    file_type = get_file_type(file)
-                    file_path = download_file(url, filename)
-                    size = get_file_size(file_path)
-                    version = '1'
-                    data = {'url': url, 'filename': filename, 'sha1': sha1, 'md5': md5,
-                            'file_type': file_type, 'size': size, 'version': version}
+                    download_file(url, filename, version, app_name)
+                    data = {'url': url, 'app_name': app_name, 'filename': filename, 'version': version}
                     logger.info(data)
+                    insert_to_db(data)
                     all_files.append(data)
+
+                    # # Extracting metadata to local
+                    # sha1 = get_sha1(file)
+                    # md5 = get_md5(file)
+                    # file_type = get_file_type(file)
+                    # size = get_file_size(file_path)
+                    # data = {'url': url, 'filename': filename, 'sha1': sha1, 'md5': md5,
+                    #         'file_type': file_type, 'size': size, 'version': version}
             return all_files
 
     else:
         logger.info('[x] Error downloading files.')
         logger.info('[x] No files found to download.')
+        return None
 
 
-def get_version():
-    for par in parent_urls:
-        version_links = "{}{}".format(base_url, par)
-        response = get_url(version_links)
+def get_version_type(url):
+    if 'iecookies.html' in url:
+        v_type = 'parent'
+    elif '/utils/trans/' in url:
+        v_type = 'language'
+    else:
+        v_type = 'parent'
+    return v_type
 
-        if response is not None:
-            soup = BeautifulSoup(response, 'html.parser')
-            table = soup.find('table', {"class": "utilcaption"})
-            rows = table.find_all('td')
-            for r in rows:
-                row = str(r)
-                row = row.split('\n')[1]
-                v = row.split('<br/>')[0]
-                ver = v.split('<td>')[-1]
-                version = ver.split('\n')[0]
-                if version == '':
-                    continue
-                else:
-                    if '-' in version:
-                        version = version.split(' - ')[0]
-                        logger.info(version)
-                    elif version is None:
-                        continue
-                    else:
-                        logger.info(version)
+
+def get_all_versions(version_type, url, file):
+    if version_type == 'parent':
+        ver = get_parent_version(url)
+    else:
+        ver = get_child_version(file)
+    return ver
+
+
+def get_app_name(file):
+    download_link = "{}{}".format(base_url, parent_urls[-1])
+    response = get_url(download_link)
+
+    if response is not None:
+        soup = BeautifulSoup(response, 'lxml')
+        table = soup.find('table', {"class": "utilcaption"})
+        td = table.find_all('td')
+        data = td[1].text
+        app_name = data.split('</td>')[0]
+        app_name = app_name.split('\n')[0]
+        if '-' in app_name:
+            app_name = app_name.split('-')[0]
+        else:
+            app_name = app_name
+        return app_name
+
+
+def get_parent_version(file):
+    app_name = get_app_name(file)
+    if ' v' in app_name:
+        version = app_name.split(' v')[1]
+    else:
+        version = app_name
+    return version
+
+
+def get_child_version(file):
+    download_link = "{}{}".format(base_url, parent_urls[-1])
+    response = get_url(download_link)
+    if response is not None:
+        soup = BeautifulSoup(response, 'lxml')
+        a = soup.find('a', href=file)
+        tr = a.find_parent('tr')
+        td = tr.find_all('td')
+        row = str(td)
+        ver = row.split(', ')[-1]
+        ver = ver.split('<td>')[1]
+        ver = ver.split('\n')[0]
+        if '</td>' in ver:
+            ver = ver.split('</td>')[0]
+        elif ver == '':
+            ver = 'No version'
+        else:
+            ver = ver
+        return ver
 
 
 def get_file_size(file_path):
@@ -172,34 +222,38 @@ def get_md5(file):
     return md5
 
 
-def download_file(url, filename):
+def download_file(url, filename, version, app_name):
     try:
         local_storage = "{}\\storage".format(os.getcwd())
         r = requests.get(url, allow_redirects=True)
-
         if r.status_code == 200:
-            logger.info("[Currently downloading {}]".format(url))
-            wget.download(url, local_storage)
-            logger.info("[/] Successfully downloaded {}".format(filename))
-            file_path = "{}{}{}".format(local_storage, os.sep, filename)
-            return file_path
+            logger.info(" [Currently downloading {} APP_NAME: {} VERSION: {}]".format(url, app_name, version))
 
+            if len(existing_data) > 0:
+                # Dictionary for comparing from website to database
+                comp = {'app_name': app_name, 'version': version, 'filename': filename}
+                if comp in existing_data:
+                    # If the app name and version is existing in DB
+                    logger.error("[File exists. APP_NAME: {} VERSION: {}]".format(app_name, version))
+                else:
+                    # Download the updated app
+                    download(url, local_storage, filename)
+            else:
+                # If the local DB is empty, download everything.
+                download(url, local_storage, filename)
         else:
-            logger.info("[Currently downloading {}]".format(url))
+            # If file is not downloadable
+            logger.info("[Currently downloading from {} (APP_NAME: {} VERSION: {})]".format(url, app_name, version))
             logger.error("[x] Failed to download {}".format(filename))
     except Exception as e:
         print(e)
 
 
-def extract_sha1(hash_path):
-    """Extract sha1"""
-    sha1_extractor = hashlib.sha1()
-
-    with open(hash_path, 'rb') as afile:
-        buf = afile.read()
-        sha1_extractor.update(buf)
-        sha1 = sha1_extractor.hexdigest()
-    return sha1
+def download(url, local_storage, filename):
+    wget.download(url, local_storage)
+    logger.info("[/] Successfully downloaded {}".format(filename))
+    # file_path = "{}{}{}".format(local_storage, os.sep, filename)
+    # return file_path
 
 
 def setup_yaml():
@@ -247,23 +301,19 @@ def connect_to_sql():
     return connection
 
 
-def insert_to_db():
+def insert_to_db(file):
     try:
         connection = connect_to_sql()
         cursor = connection.cursor()
-        for a_file in all_files:
-            postgres_insert_query = """
-                                        INSERT INTO files
-                                        (URL, FILENAME, SHA1, MD5, FILE_TYPE, SIZE, VERSION)
-                                        VALUES (%s,%s,%s,%s,%s,%s,%s)
-                                    """
-            record_to_insert = (a_file['url'], a_file['filename'], a_file['sha1'], a_file['md5'], a_file['file_type'],
-                                a_file['size'], a_file['version'])
-            cursor.execute(postgres_insert_query, record_to_insert)
-            connection.commit()
-            logger.info(a_file)
-            logger.info("[/] Record inserted to database.")
-        logger.info("Total: {} record/s inserted successfully into file table".format(len(all_files)))
+        postgres_insert_query = """
+                                    INSERT INTO files
+                                    (URL, APP_NAME, FILENAME, VERSION)
+                                    VALUES (%s,%s,%s,%s)
+                                """
+        record_to_insert = (file['url'], file['app_name'], file['filename'], file['version'])
+        cursor.execute(postgres_insert_query, record_to_insert)
+        connection.commit()
+        logger.info("[/] Record inserted to database.")
 
     except Exception as error:
         print("Failed to insert data into sqlite table", error)
@@ -273,11 +323,10 @@ def main():
     logger.info('Harvesting your files.')
     logger.info('Please wait.')
     start_time = time.time()
+    get_parts()
     get_parent_url()
-    logger.info('Getting ready to insert your files to database.')
-    insert_to_db()
-    # get_version()
     duration = time.time() - start_time
+    logger.info("Total: {} record/s inserted successfully into file table".format(len(all_files)))
     logger.info("Downloaded data in {} seconds".format(duration))
 
 
@@ -285,4 +334,3 @@ if __name__ == '__main__':
     setup_yaml()
     logger = logging.getLogger(__name__)
     main()
-

@@ -4,10 +4,11 @@ disable_existing_loggers: true
 mysql:
   host: localhost
   user: postgres
+#  db: harvest_local_docker # Docker
+#  port: 5433 # Docker
   db: harvest_local
   port: 5432
   password: novirus123
-#
 #thread:
 #  rest_api: http://localhost:8000/modulelog/
 #  num_of_thread: 1
