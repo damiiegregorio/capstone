@@ -35,3 +35,16 @@
 * Unit tests should have at least 80% coverage.
 
 * The final code should be committed in a GitHub repository named "capstone"
+
+
+## Testing
+### Harvest App
+```
+pytest --cov=harvest test_harvest.py/
+```
+
+### Harvest API
+```
+pytest --cov=harvest_api test_harvest_api.py/
+```
+
