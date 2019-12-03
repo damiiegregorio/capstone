@@ -1,50 +1,70 @@
-# capstone
-### Objective
+# Harvest (Production)
+The Harvest application scrapes web pages for information and download files.
+
+## Features
 * Harvest application to scrape web pages for information and download files
-     * The application saves website information into a database and stores the downloaded files to disk
-* Create a REST API which accepts file submissions.
-     * The application extracts metadata from file uploads and allows users to read the metadata, update/correct the metadata and delete submissions.
+* The application saves website information into a database and stores the downloaded files to disk
+* The application extracts metadata from file uploads and allows users to read the metadata, update/correct the metadata and delete submissions.
 
-### Functional Requirements
+## Harvest Application
+The application should then submit the downloaded file to the REST API and record the response in the database.
 
-#### Harvest Application
- 
-* The application crawls the webpage (http://3.228.218.197/). The application should save all the links on the index page and be able to determine when new links are added if the website is updated.
-* The application should also download the programs linked in the download page.
-* The application should also save certain information on the current download page. If there's a change on the information, the application should download the program again.
-* The information that can change are the following:
-  * program name
-  * program version
-* The application should then submit the downloaded file to the REST API and record the response in the DB.
- 
-#### REST API
- 
-* The application extracts metadata from a file submission and stores the data in a PostgreSQL database.
-* The files are stored in a directory in the hosting machine. The application should reject duplicate file submissions.
-* The following attributes are extracted from files:
-  - size, filename, sha1, md5, filetype (note that submissions may not include filenames
-* The application should allow clients to retrieve the metadata via SHA-1 or MD5.
-* It should also allow clients to update the metadata for a specific file.
-* The application should allow clients to delete an entry which also deletes the actual file stored in the machine.
+```python
+# Docker container database configuration
+mysql:
+  host: harvest_db_docker    # Docker container
+  user: postgres             # Postgres user
+  db: harvest_application    # Database name inside the container
+  port: 5432                 # Port used
+  password: novirus123       # Password
+```
 
-### Nonfunctional Requirements
-* Docker must be installed on a CentOS 7 VM installed from scratch and configured properly so that the application/REST API can be accessed by the host machine.
+```python
+api:
+  uploader: http://<IPv4>:<PORT>/uploader    # Dockerized API and Port
+# sample: http://172.19.0.3:8000/uploader 
+```
 
-* The applications should be running in a docker container so that deployment and dependencies are easily managed. The REST API also use WSGI server to handle HTTP connections.
+### Sample Output
+```cmd
+2019-12-03 07:22:17,162 - __main__ - INFO -  [Currently downloading http://54.174.36.110/utils/trans/mylastsearch_dutch1.zip APP_NAME: MyLastSearch VERSION: 1.41]
+2019-12-03 07:22:17,677 - __main__ - INFO -  [/] Successfully downloaded mylastsearch_dutch1.zip
+2019-12-03 07:22:17,678 - __main__ - INFO -  {'app_name': 'MyLastSearch', 'filename': 'mylastsearch_dutch1.zip', 'version': '1.41'}
+2019-12-03 07:22:17,693 - __main__ - INFO -  [/] Record inserted to database.
+2019-12-03 07:22:17,722 - __main__ - INFO -  [/] API - Data sent to API. Status response is <Response [200]>
+```
 
-* Unit tests should have at least 80% coverage.
+## REST API
+The applications should be running in a docker container so that deployment and dependencies are easily managed. The REST API also use WSGI server to handle HTTP connections.
 
-* The final code should be committed in a GitHub repository named "capstone"
+```python
+# Docker container database configuration
+mysql:
+  host: harvest_db_docker    # Docker container same as Harvest App 
+  user: postgres             # Postgres user
+  db: harvest_api_docker     # Database name inside the container
+  port: 5432                 # Port used
+  password: novirus123       # Password
 
+```
+
+
+## Dockerfile
+```text
+FROM python:3
+ADD . /app
+WORKDIR /app
+
+RUN pip install -r requirements.txt
+RUN pip install flask gunicorn
+EXPOSE 8000
+CMD ["gunicorn", "server:app", "-b",  "0.0.0.0:8000"]
+```
 
 ## Testing
-### Harvest App
-```
-pytest --cov=harvest test_harvest.py/
-```
-
-### Harvest API
-```
-pytest --cov=harvest_api test_harvest_api.py/
+```python
+pytest --cov=harvest tests/test_harvest.py
 ```
 
+## License
+[MIT](https://choosealicense.com/licenses/mit/)
