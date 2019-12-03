@@ -1,0 +1,280 @@
+swagger: "2.0"
+info:
+  description: This is the swagger file that goes with our server code
+  version: "1.0.0"
+  title: Swagger Rest Article
+consumes:
+  - application/json
+produces:
+  - application/json
+
+# Paths supported by the server application
+paths:
+  /harvestlog:
+    get:
+      operationId: harvest.read_all
+      tags:
+        - Harvest
+      summary: Read the entire set of job, sorted by last name
+      description: Read the entire set of job, sorted by last name
+      responses:
+        200:
+          description: Successfully read job set operation
+          schema:
+            type: array
+            items:
+              properties:
+                id:
+                  type: integer
+                  description: File ID
+                filename:
+                  type: string
+                  description: Filename
+                sha1:
+                  type: string
+                  description: SHA1
+                md5:
+                  type: string
+                  description: MD5
+                file_type:
+                  type: string
+                  description: File type
+                file_size:
+                  type: integer
+                  description: File size
+    post:
+      operationId: harvest.create
+      tags:
+        - Harvest
+      summary: Create a file
+      description: Create a file
+      parameters:
+        - name: file
+          in: body
+          description: File to create
+          schema:
+            type: object
+            required:
+              - file_type
+              - filename
+              - md5
+              - sha1
+              - file_size
+            properties:
+              file_type:
+                type: string
+                description: File type
+              filename:
+                type: string
+                description: Application/Filename
+              md5:
+                type: string
+                description: MD5
+              sha1:
+                type: string
+                description: sha1
+              file_size:
+                type: integer
+                description: file_size
+      responses:
+        201:
+          description: Successfully created person
+
+  /uploader:
+    post:
+      operationId: harvest.uploader
+      consumes:
+        - multipart/form-data
+      tags:
+        - "Upload"
+      summary: "Uploads a file"
+      description: "Uploads a file"
+      parameters:
+        - name: files
+          in: formData
+          description: "file to upload"
+          type: file
+      responses:
+        200:
+          description: Successfully uploaded a file.
+
+  /query/sha1/{sha1}:
+    get:
+      operationId: harvest.read_sha1
+      tags:
+        - File
+      summary: Retrieve a file
+      description: Retrieve a file
+      parameters:
+        - name: sha1
+          in: path
+          description: SHA1 of the job to get
+          type: string
+          required: True
+      responses:
+        200:
+          description: Successfully read file from file data operation
+          schema:
+            type: object
+            properties:
+              id:
+                type: integer
+                description: File ID
+              filename:
+                type: string
+                description: Filename
+              sha1:
+                type: string
+                description: SHA1
+              md5:
+                type: string
+                description: MD5
+              file_type:
+                type: string
+                description: File type
+    delete:
+      operationId: harvest.delete_sha1
+      tags:
+        - Job
+      summary: Delete a file from the file list
+      description: Delete a file
+      parameters:
+        - name: sha1
+          in: path
+          type: string
+          description: sha1 of the person to delete
+          required: true
+      responses:
+        200:
+          description: Successfully deleted a person
+    put:
+      operationId: harvest.update_sha1
+      tags:
+        - File
+      summary: Update a file
+      description: Update a file
+      parameters:
+        - name: sha1
+          in: path
+          description: sha1 the person to update
+          type: string
+          required: True
+        - name: file
+          in: body
+          schema:
+            type: object
+            properties:
+              sha1:
+                type: string
+                description: SHA1
+              filename:
+                type: string
+                description: FILENAME
+              md5:
+                type: string
+                description: MD5
+              file_type:
+                type: string
+                description: FILE TYPE
+              file_size:
+                type: integer
+                description: FILE TYPE
+      responses:
+        200:
+          description: Successfully updated person
+
+  /query/md5/{md5}:
+    get:
+      operationId: harvest.read_md5
+      tags:
+        - File
+      summary: Retrieve a file
+      description: Retrieve a file
+      parameters:
+        - name: md5
+          in: path
+          description: MD5 of the job to get
+          type: string
+          required: True
+      responses:
+        200:
+          description: Successfully read file from file data operation
+          schema:
+            type: object
+            properties:
+              id:
+                type: integer
+                description: File ID
+              filename:
+                type: string
+                description: Filename
+              sha1:
+                type: string
+                description: SHA1
+              md5:
+                type: string
+                description: MD5
+              file_type:
+                type: string
+                description: File type
+    delete:
+      operationId: harvest.delete_md5
+      tags:
+        - File
+      summary: Delete a file from the file list
+      description: Delete a file
+      parameters:
+        - name: md5
+          in: path
+          type: string
+          description: md5 of the file to delete
+          required: true
+        - name: file
+          in: body
+          schema:
+            type: object
+            properties:
+              filename:
+                type: string
+                description: Filename
+
+      responses:
+        200:
+          description: Successfully deleted a file
+
+    put:
+      operationId: harvest.update_md5
+      tags:
+        - File
+      summary: Update a file
+      description: Update a file
+      parameters:
+        - name: md5
+          in: path
+          description: sha1 the person to update
+          type: string
+          required: True
+        - name: file
+          in: body
+          schema:
+            type: object
+            properties:
+              sha1:
+                type: string
+                description: SHA1
+              filename:
+                type: string
+                description: FILENAME
+              md5:
+                type: string
+                description: MD5
+              file_type:
+                type: string
+                description: FILE TYPE
+              file_size:
+                type: integer
+                description: FILE SIZE
+      responses:
+        200:
+          description: Successfully updated person
+
