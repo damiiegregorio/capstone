@@ -1,4 +1,6 @@
 from initial import *
+from psycopg2 import sql
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 existing_data = []
 
 
@@ -42,10 +44,10 @@ def insert_to_db(file):
         cursor = connection.cursor()
         postgres_insert_query = """
             INSERT INTO files
-            (URL, APP_NAME, FILENAME, VERSION)
-            VALUES (%s,%s,%s,%s)
+            (APP_NAME, FILENAME, VERSION)
+            VALUES (%s,%s,%s)
         """
-        record_to_insert = (file['url'], file['app_name'], file['filename'], file['version'])
+        record_to_insert = (file['app_name'], file['filename'], file['version'])
         cursor.execute(postgres_insert_query, record_to_insert)
         connection.commit()
         logger.info(" [/] Record inserted to database.")
@@ -60,16 +62,56 @@ def update_file(file):
         cursor = connection.cursor()
         postgres_insert_query = """
             UPDATE files
-            SET URL=%s
-                APP_NAME=%s
+            SET APP_NAME=%s
                 FILENAME=%s
                 VERSION=%s
             WHERE FILENAME=%s
         """
-        record_to_insert = (file['url'], file['app_name'], file['filename'], file['version'])
+        record_to_insert = (file['app_name'], file['filename'], file['version'])
         cursor.execute(postgres_insert_query, record_to_insert)
         connection.commit()
         logger.info(" [/] Record updated to database.")
 
     except Exception as error:
-        logger.error("Failed to insert data in database", error)
+        logger.error("[x] Failed to insert data in database", error)
+
+
+def create_db():
+    mysql = connect_to_sql()
+    connection = connect_to_sql()
+    connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)  # <-- ADD THIS LINE
+
+    cur = connection.cursor()
+    cur.execute(sql.SQL("CREATE DATABASE {}").format(
+        sql.Identifier(mysql['db']))
+    )
+    logger.info("Database created.")
+
+
+def create_table():
+    try:
+        mysql = connect_to_sql()
+        connection = psycopg2.connect(
+            user=mysql['user'],
+            password=mysql['password'],
+            host=mysql['host'],
+            port=mysql['port'],
+            database=mysql['db']
+        )
+        # Create cursor
+        cursor = connection.cursor()
+
+        create_table_query = """
+        CREATE TABLE files
+            (ID       SERIAL  PRIMARY KEY     NOT NULL,
+            APP_NAME          varchar         NOT NULL,
+            FILENAME          varchar         NOT NULL,
+            VERSION         varchar         NOT NULL); 
+        """
+
+        cursor.execute(create_table_query)
+        connection.commit()
+        logger.info("Table created successfully in PostgreSQL")
+
+    except (Exception, psycopg2.Error) as error:
+        logger.error("Error while connecting to PostgreSQL", error)

@@ -2,13 +2,15 @@ version: 1
 disable_existing_loggers: true
 
 mysql:
-  host: localhost
+#  host: localhost
+  host: pg-docker # docker database container name
   user: postgres
-#  db: harvest_local_docker # Docker
-#  port: 5433 # Docker
-  db: harvest_local
+#  db: postgres # Docker
+#  port: 54320 # Docker
+  db: harvest_application
   port: 5432
   password: novirus123
+
 api:
   url: http://localhost:8000
   uploader: http://localhost:8000/uploader

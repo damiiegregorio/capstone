@@ -1,7 +1,7 @@
-from requests import get
-from requests.exceptions import RequestException
-from contextlib import closing
-from bs4 import BeautifulSoup
+from requests import *
+from requests.exceptions import *
+from contextlib import *
+from bs4 import *
 from check_db import *
 import psycopg2
 import hashlib
@@ -48,7 +48,7 @@ def get_parent_url():
     response = get_url(base_url)
 
     if response is not None:
-        soup = BeautifulSoup(response, 'html.parser')
+        soup = BeautifulSoup(response, 'lxml')
         download_links = soup.find_all('li')
 
         for ref_link in download_links:
@@ -71,7 +71,7 @@ def recursive(urls, new_url):
         new_url += link
         response = get_url(new_url)
         if response is not None:
-            soup = BeautifulSoup(response, 'html.parser')
+            soup = BeautifulSoup(response, 'lxml')
             links = soup.find_all('a')
             for link in links:
                 file = link.get('href')
@@ -88,17 +88,10 @@ def recursive(urls, new_url):
                     app_name = get_app_name()
                     filename = get_filename(file)
                     download_resp = download_file(url, filename, version, app_name)
-                    data = {'url': url, 'app_name': app_name, 'filename': filename, 'version': version}
+                    data = {'app_name': app_name, 'filename': filename, 'version': version}
                     insert_db(download_resp, data)
                     send_data_to_server(filename, download_resp)
                     all_files.append(data)
-                    # # Extracting metadata to local
-                    # sha1 = get_sha1(file)
-                    # md5 = get_md5(file)
-                    # file_type = get_file_type(file)
-                    # size = get_file_size(file_path)
-                    # data = {'url': url, 'filename': filename, 'sha1': sha1, 'md5': md5,
-                    #         'file_type': file_type, 'size': size, 'version': version}
             return all_files
 
     else:
@@ -116,7 +109,7 @@ def send_data_to_server(filename, download_resp):
         response = requests.post(api['uploader'], files=files)
         logger.info(' [/] API - Data sent to API. Status response is {}'.format(response))
     else:
-        logger.error('[x] API - A record ')
+        logger.error('[x] API - Record exists.')
 
 
 def insert_db(download_resp, data):
@@ -133,10 +126,10 @@ def insert_to_db(file):
         cursor = connection.cursor()
         postgres_insert_query = """
             INSERT INTO files
-            (URL, APP_NAME, FILENAME, VERSION)
-            VALUES (%s,%s,%s,%s)
+            (APP_NAME, FILENAME, VERSION)
+            VALUES (%s,%s,%s)
         """
-        record_to_insert = (file['url'], file['app_name'], file['filename'], file['version'])
+        record_to_insert = (file['app_name'], file['filename'], file['version'])
         cursor.execute(postgres_insert_query, record_to_insert)
         connection.commit()
         logger.info(" [/] Record inserted to database.")
@@ -284,7 +277,6 @@ def get_md5(file):
 
 def download_file(url, filename, version, app_name):
     try:
-        local_storage = "{}\\storage".format(os.getcwd())
         r = requests.get(url, allow_redirects=True)
         if r.status_code == 200:
             logger.info(" [Currently downloading {} APP_NAME: {} VERSION: {}]".format(url, app_name, version))
@@ -297,7 +289,6 @@ def download_file(url, filename, version, app_name):
                     logger.error("[File exists. APP_NAME: {} VERSION: {}]".format(app_name, version))
                     logger.error("[Failed to download. APP_NAME: {} VERSION: {}]".format(app_name, version))
                     return False
-
                 else:
                     # Download the updated app
                     download(url, local_storage, filename)
@@ -354,6 +345,8 @@ def open_yaml():
 
 
 def main():
+    # create_db()
+    # create_table()
     logger.info('Harvesting your files.')
     start_time = time.time()
     get_parts()
